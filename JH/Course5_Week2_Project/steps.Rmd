@@ -1,0 +1,106 @@
+---
+title: "Step Analyser"
+author: "Victor Valdevite Pinto"
+date: "Wednesday, March 11, 2015"
+output: html_document
+---
+
+It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as a Fitbit, Nike Fuelband, or Jawbone Up. These type of devices are part of the "quantified self" movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data.
+
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+
+1. Just load the data and store it in a data frame.
+
+```{r message=FALSE}
+data <- read.csv("activity.csv")
+```
+
+2. What is mean total number of steps taken per day?
+
+First, let's calculate the total steps per day, removing NAs
+```{r message=FALSE}
+agg <- aggregate(data$steps, by=list(data$date), FUN=sum, na.rm = TRUE)
+colnames(agg) <- c("Date", "Steps")
+```
+
+Then, a Histogram of the number of steps per day
+```{r message=FALSE}
+library(ggplot2)
+qplot(agg$Steps, geom="histogram", xlab="Number of Steps", ylab="Frequency", main="Number of Steps Histogram")
+```
+
+What's the Mean and Median of the number of Steps?
+```{r message=FALSE}
+data.frame(Function=c("Mean", "Median"), Value=c(mean(agg$Steps), median(agg$Steps)))
+```
+
+3. Let's find out the average daily activity pattern.
+
+First, aggregate the number of steps by 5 minutes interval and plot a time series.
+```{r message=FALSE}
+agg <- aggregate(data$steps, by=list(data$interval), FUN=sum, na.rm = TRUE)
+colnames(agg) <- c("Interval", "Steps")
+qplot(agg$Interval, agg$Steps, xlab="Interval", ylab="Number of Steps", main="Number of Steps by Interval") + geom_line()
+```
+
+Let's see which 5-minute interval has the maximum number of steps
+```{r message=FALSE}
+head(agg[with(agg, order(-Steps)),], n=1)
+```
+
+4. Working with missing values
+
+How many missing values are there?
+```{r message=FALSE}
+sum(is.na(data$steps))
+```
+
+Let's substitute the missing values with the mean for the respective 5-minute interval
+```{r results='hide', message=FALSE}
+library(dplyr)
+agg <- aggregate(data$steps, by=list(data$interval), FUN=mean, na.rm = TRUE)
+colnames(agg) <- c("interval", "Steps")
+newData <- left_join(data, agg, by="interval")
+i <- 1
+while(i <= length(newData$interval)){
+    if(is.na(newData[i,1]))
+        newData[i,1] <- trunc(newData[i,4])
+    i <- i + 1
+}
+newData <- newData[,1:3]
+```
+
+Let's create the same graph and table from the step 2, but with the new Data
+```{r message=FALSE}
+newAgg <- aggregate(newData$steps, by=list(newData$date), FUN=sum, na.rm = FALSE)
+colnames(newAgg) <- c("Date", "Steps")
+qplot(newAgg$Steps, geom="histogram", xlab="Number of Steps", ylab="Frequency", main="Number of Steps Histogram")
+data.frame(Function=c("Mean", "Median"), Value=c(mean(newAgg$Steps), median(newAgg$Steps)))
+```
+
+5. Weekdays vs. Weekends
+
+Let's create a factor variable in a new data frame with the weekdays or weekends
+```{r message=FALSE, results='hide'}
+newData[,2] <- as.Date(as.vector(newData[,2]),"%Y-%m-%d")
+i <- 1
+while(i <= length(newData$date)){
+    if(weekdays(newData[i,2], abbreviate=TRUE) %in% c("sáb", "dom", "sat", "sun"))
+        newData[i,4] <- "weekend"
+    else
+        newData[i,4] <- "weekday"
+    i <- i + 1
+}
+colnames(newData)[4] <- "week_type"
+newData[,4] <- as.factor(newData[,4])
+```
+
+Now, let's compare the average of the 5-minute interval for weekdays and weekends
+```{r message=FALSE}
+newAgg <- aggregate(newData$steps, by=list(newData$interval, newData$week_type), FUN=mean, na.rm = FALSE)
+colnames(newAgg) <- c("interval", "week", "steps")
+qplot(interval, steps, data=newAgg, facets=week~., xlab="5-minute Interval", ylab="Steps Average", main="Steps Average by Interval and Week-Break") + geom_line()
+```
+
+
