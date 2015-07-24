@@ -1,0 +1,63 @@
+---
+title: "Predicting How People Exercise"
+author: "Victor Valdevite Pinto"
+date: "Monday, July 20, 2015"
+output: html_document
+---
+
+# Summary
+The goal of this analysis is to predict the manner in which people did the exercise. This is the "classe" variable in the training set. This report contains how to read the data, subset it, apply cross validation and predict the Classe variable fot the test dataset. 
+
+# Analysis
+
+## Data Preparation
+
+### Required Librarys
+```{r}
+library(caret)
+```
+
+### Reading the Data
+```{r}
+training <- read.csv("C:\\Users\\Victor\\Box Sync\\Documentos\\Cursos\\Repo\\JH\\Course8_Week3_Project\\pml-training.csv", na.strings=c("NA","","#DIV/0!"))
+```
+
+### Select columns for the model construction
+As a cleanup strategy, we will remove the columns with more than 10% of NA values and columns that represents names, timestamps, dates and other variables that are not important to the prediction.
+```{r}
+##remove the columns with more than 10% of NA data
+training_ss <- training[ , sapply(training, function(x) !mean(is.na(x))>.1)]
+```
+
+The remaining columns are: `r names(training_ss)`
+
+Let's select just the data from accelerometers and gyroscopes
+```{r}
+training_ss <- training_ss[,c("classe", names(training_ss)[grepl("^(accel_|gyros_)", names(training_ss))])]
+```
+
+## Cross Validation strategy
+Since the training dataset is big enought, we can use cross validation, creating a new training (60% of the data) and a new testing (40% of the data) datasets. We will create these new datasets using the caret package.
+```{r}
+intrain <- createDataPartition(y=training_ss$classe, p=0.6, list=FALSE)
+cross_training <- training_ss[intrain,]
+cross_testing <- training_ss[-intrain,]
+```
+
+## Prediction Algorithm
+The selected algorithm to train the model is Linear Discriminant Analysis in the caret package.
+```{r}
+fit <- train(classe ~ ., method="lda", data=cross_training)
+```
+
+## Out of sample error
+We will estimate the Out Of Sample Error by predicting the Testing dataset created with the croos validation and taking the 1 - Accuracy. The summary of the prediction is:
+```{r}
+cm <- confusionMatrix(predict(fit, cross_testing), cross_testing$classe)
+cm
+```
+
+The estimated OOSE is: `r 1 - cm$overall['Accuracy']`
+
+# Results
+The final model is not very accurate, since the Accuracy is `r cm$overall['Accuracy']`, but is much better than guessing, that should have 20% accuracy.
